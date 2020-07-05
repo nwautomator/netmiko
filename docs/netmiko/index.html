@@ -331,12 +331,17 @@ a new SSH connection with a remote host. This …</p></section>
 <summary>Source code</summary>
 <pre><code class="python">def ConnectHandler(*args, **kwargs):
     &#34;&#34;&#34;Factory function selects the proper class and creates object based on device_type.&#34;&#34;&#34;
-    if kwargs[&#34;device_type&#34;] not in platforms:
+    device_type = kwargs[&#34;device_type&#34;]
+    if device_type not in platforms:
+        if device_type is None:
+            msg_str = platforms_str
+        else:
+            msg_str = telnet_platforms_str if &#34;telnet&#34; in device_type else platforms_str
         raise ValueError(
-            &#34;Unsupported device_type: &#34;
-            &#34;currently supported platforms are: {}&#34;.format(platforms_str)
+            &#34;Unsupported &#39;device_type&#39; &#34;
+            &#34;currently supported platforms are: {}&#34;.format(msg_str)
         )
-    ConnectionClass = ssh_dispatcher(kwargs[&#34;device_type&#34;])
+    ConnectionClass = ssh_dispatcher(device_type)
     return ConnectionClass(*args, **kwargs)</code></pre>
 </details>
 </dd>
@@ -371,12 +376,17 @@ a new SSH connection with a remote host. This …</p></section>
 <summary>Source code</summary>
 <pre><code class="python">def ConnectHandler(*args, **kwargs):
     &#34;&#34;&#34;Factory function selects the proper class and creates object based on device_type.&#34;&#34;&#34;
-    if kwargs[&#34;device_type&#34;] not in platforms:
+    device_type = kwargs[&#34;device_type&#34;]
+    if device_type not in platforms:
+        if device_type is None:
+            msg_str = platforms_str
+        else:
+            msg_str = telnet_platforms_str if &#34;telnet&#34; in device_type else platforms_str
         raise ValueError(
-            &#34;Unsupported device_type: &#34;
-            &#34;currently supported platforms are: {}&#34;.format(platforms_str)
+            &#34;Unsupported &#39;device_type&#39; &#34;
+            &#34;currently supported platforms are: {}&#34;.format(msg_str)
         )
-    ConnectionClass = ssh_dispatcher(kwargs[&#34;device_type&#34;])
+    ConnectionClass = ssh_dispatcher(device_type)
     return ConnectionClass(*args, **kwargs)</code></pre>
 </details>
 </dd>
@@ -952,7 +962,9 @@ with terminal server.</p></section>
 
             # Options for SSH host_keys
             self.use_keys = use_keys
-            self.key_file = key_file
+            self.key_file = (
+                path.abspath(path.expanduser(key_file)) if key_file else None
+            )
             self.pkey = pkey
             self.passphrase = passphrase
             self.allow_agent = allow_agent
@@ -1342,14 +1354,16 @@ with terminal server.</p></section>
 
                 # Search for username pattern / send username
                 if re.search(username_pattern, output, flags=re.I):
-                    self.write_channel(self.username + self.TELNET_RETURN)
+                    # Sometimes username/password must be terminated with &#34;\r&#34; and not &#34;\r\n&#34;
+                    self.write_channel(self.username + &#34;\r&#34;)
                     time.sleep(1 * delay_factor)
                     output = self.read_channel()
                     return_msg += output
 
                 # Search for password pattern / send password
                 if re.search(pwd_pattern, output, flags=re.I):
-                    self.write_channel(self.password + self.TELNET_RETURN)
+                    # Sometimes username/password must be terminated with &#34;\r&#34; and not &#34;\r\n&#34;
+                    self.write_channel(self.password + &#34;\r&#34;)
                     time.sleep(0.5 * delay_factor)
                     output = self.read_channel()
                     return_msg += output
@@ -2438,8 +2452,6 @@ with terminal server.</p></section>
         :param string_buffer: The string to be processed to remove ANSI escape codes
         :type string_buffer: str
         &#34;&#34;&#34;  # noqa
-        log.debug(&#34;In strip_ansi_escape_codes&#34;)
-        log.debug(f&#34;repr = {repr(string_buffer)}&#34;)
 
         code_position_cursor = chr(27) + r&#34;\[\d+;\d+H&#34;
         code_show_cursor = chr(27) + r&#34;\[\?25h&#34;
@@ -2495,13 +2507,7 @@ with terminal server.</p></section>
             output = re.sub(ansi_esc_code, &#34;&#34;, output)
 
         # CODE_NEXT_LINE must substitute with return
-        output = re.sub(code_next_line, self.RETURN, output)
-
-        log.debug(&#34;Stripping ANSI escape codes&#34;)
-        log.debug(f&#34;new_output = {output}&#34;)
-        log.debug(f&#34;repr = {repr(output)}&#34;)
-
-        return output
+        return re.sub(code_next_line, self.RETURN, output)
 
     def cleanup(self, command=&#34;&#34;):
         &#34;&#34;&#34;Logout of the session on the network device plus any additional cleanup.&#34;&#34;&#34;
@@ -4033,8 +4039,6 @@ Move cursor position leftward by x characters (1 in this case)</p>
     :param string_buffer: The string to be processed to remove ANSI escape codes
     :type string_buffer: str
     &#34;&#34;&#34;  # noqa
-    log.debug(&#34;In strip_ansi_escape_codes&#34;)
-    log.debug(f&#34;repr = {repr(string_buffer)}&#34;)
 
     code_position_cursor = chr(27) + r&#34;\[\d+;\d+H&#34;
     code_show_cursor = chr(27) + r&#34;\[\?25h&#34;
@@ -4090,13 +4094,7 @@ Move cursor position leftward by x characters (1 in this case)</p>
         output = re.sub(ansi_esc_code, &#34;&#34;, output)
 
     # CODE_NEXT_LINE must substitute with return
-    output = re.sub(code_next_line, self.RETURN, output)
-
-    log.debug(&#34;Stripping ANSI escape codes&#34;)
-    log.debug(f&#34;new_output = {output}&#34;)
-    log.debug(f&#34;repr = {repr(output)}&#34;)
-
-    return output</code></pre>
+    return re.sub(code_next_line, self.RETURN, output)</code></pre>
 </details>
 </dd>
 <dt id="netmiko.BaseConnection.strip_command"><code class="name flex">
@@ -4220,14 +4218,16 @@ Move cursor position leftward by x characters (1 in this case)</p>
 
             # Search for username pattern / send username
             if re.search(username_pattern, output, flags=re.I):
-                self.write_channel(self.username + self.TELNET_RETURN)
+                # Sometimes username/password must be terminated with &#34;\r&#34; and not &#34;\r\n&#34;
+                self.write_channel(self.username + &#34;\r&#34;)
                 time.sleep(1 * delay_factor)
                 output = self.read_channel()
                 return_msg += output
 
             # Search for password pattern / send password
             if re.search(pwd_pattern, output, flags=re.I):
-                self.write_channel(self.password + self.TELNET_RETURN)
+                # Sometimes username/password must be terminated with &#34;\r&#34; and not &#34;\r\n&#34;
+                self.write_channel(self.password + &#34;\r&#34;)
                 time.sleep(0.5 * delay_factor)
                 output = self.read_channel()
                 return_msg += output
