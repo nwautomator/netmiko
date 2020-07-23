@@ -40,7 +40,7 @@ class NokiaSrosSSH(BaseConnection):
         self.set_base_prompt()
         # "@" indicates model-driven CLI (vs Classical CLI)
         if "@" in self.base_prompt:
-            self.set_terminal_width(command="environment console width 512")
+            self.set_terminal_width(command="environment console width 512", pattern="environment")
             self.disable_paging(command="environment more false")
             # To perform file operations we need to disable paging in classical-CLI also
             self.disable_paging(command="//environment no more")
